@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Configuration
-MODEL_PATH = r"D:\server\best.pt"
+MODEL_PATH = "best.pt"
 MAX_WORKERS = 4  # Adjust based on your GPU memory
 BATCH_SIZE = 4   # Optimal batch size for your GPU
 INPUT_QUEUE_MAXSIZE = 20  # Prevent memory overload
