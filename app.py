@@ -33,12 +33,12 @@ def batch_processor():
     while True:
         batch = []
         batch_ids = []
-        
+
         # Wait for at least one request
         item = request_queue.get()
         batch.append(item['image'])
         batch_ids.append(item['id'])
-        
+
         # Try to gather more requests for the batch (non-blocking)
         while len(batch) < BATCH_SIZE and not request_queue.empty():
             try:
@@ -47,12 +47,12 @@ def batch_processor():
                 batch_ids.append(item['id'])
             except:
                 break
-        
+
         # Process the batch
         try:
             start_time = time.time()
             batch_results = model(batch)
-            
+
             # Store results
             with lock:
                 for img_id, results in zip(batch_ids, batch_results):
@@ -64,11 +64,11 @@ def batch_processor():
                             "bbox": box.xyxy[0].tolist()
                         })
                     result_dict[img_id] = detections
-                    
+
             processing_time = time.time() - start_time
             print(f"✅ Processed batch of {len(batch)} images in {processing_time:.3f}s "
                   f"({len(batch)/processing_time:.1f} FPS)")
-                  
+
         except Exception as e:
             print(f"❌ Batch processing failed: {str(e)}")
             with lock:
@@ -79,8 +79,14 @@ def batch_processor():
 processing_thread = threading.Thread(target=batch_processor, daemon=True)
 processing_thread.start()
 
-@app.route('/', methods=['GET'])
+@app.route('/', methods=['GET', 'POST'])
 def home():
+    if request.method == 'POST':
+        return jsonify({
+            "status": "🟢 POST request received at root",
+            "message": "You're probably looking for /predict",
+            "hint": "Send image data as a multipart/form-data POST to /predict"
+        })
     return jsonify({
         "status": "🟢 Python inference server is running!",
         "performance": "Optimized for 40+ FPS",
@@ -96,29 +102,29 @@ def predict():
     try:
         # Generate unique ID for this request
         request_id = str(time.time()) + str(threading.get_ident())
-        
+
         # Read and prepare image
         file = request.files['image']
         npimg = np.frombuffer(file.read(), np.uint8)
         img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
-        
+
         # Check if queue is full
         if request_queue.qsize() >= INPUT_QUEUE_MAXSIZE:
             return jsonify({"error": "Server overloaded - try again later"}), 503
-            
+
         # Add to processing queue
         request_queue.put({'id': request_id, 'image': img})
-        
+
         # Wait for results with timeout
         start_time = time.time()
         timeout = 5.0  # seconds
-        
+
         while True:
             with lock:
                 if request_id in result_dict:
                     result = result_dict.pop(request_id)
                     break
-                
+
             if time.time() - start_time > timeout:
                 with lock:
                     if request_id in result_dict:
@@ -126,12 +132,10 @@ def predict():
                     else:
                         return jsonify({"error": "Processing timeout"}), 504
                 break
-                
+
             time.sleep(0.005)  # Short sleep to prevent busy waiting
-            
+
         return jsonify(result)
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-pass
