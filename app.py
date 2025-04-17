@@ -134,7 +134,4 @@ def predict():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == '__main__':
-    # Disable debug mode for production
-    # Consider using a production WSGI server like gunicorn or uWSGI
-    app.run(host='192.168.10.117', port=5000, debug=False, threaded=True)
+pass
